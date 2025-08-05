@@ -9,25 +9,16 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; text-align: center; background-color: #f4f6f8; }
         .container { max-width: 400px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h1 { color: #333; }
-        .button-group button { width: 100%; padding: 15px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; background-color: #007bff; color: white; transition: background-color 0.2s; font-weight: bold; margin-bottom: 15px; }
-        .button-group button.hidden { display: none; }
+        button { width: 100%; padding: 15px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; background-color: #007bff; color: white; transition: background-color 0.2s; font-weight: bold; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
         #break-section { display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
         select { padding: 10px; font-size: 16px; width: 100%; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; }
         #status { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 8px; min-height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 500; white-space: pre-wrap; word-wrap: break-word; }
-        #log-container { margin-top: 20px; text-align: left; }
-        #log-container h2 { font-size: 18px; border-bottom: 2px solid #007bff; padding-bottom: 5px; margin-bottom: 10px; }
-        #log-list { list-style-type: none; padding: 0; }
-        #log-list li { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>タイムカード</h1>
-        <div class="button-group">
-            <button id="出発-button" class="hidden" onclick="recordTime('出発')">出発</button>
-            <button id="開始-button" class="hidden" onclick="recordTime('開始')">開始</button>
-            <button id="終了-button" class="hidden" onclick="showBreakOptions()">終了</button>
-        </div>
+        <h1 id="action-title">タイムカード</h1>
         <div id="break-section">
             <label for="break-time">休憩時間（分）を選択してください:</label>
             <select id="break-time">
@@ -38,101 +29,47 @@
             <button onclick="recordTime('終了')">休憩時間を記録して終了</button>
         </div>
         <div id="status">ステータス：準備中...</div>
-        <div id="log-container">
-            <h2>今日の記録</h2>
-            <ul id="log-list">
-                <li>記録を読み込んでいます...</li>
-            </ul>
-        </div>
     </div>
 
     <script>
         const LIFF_ID = '2007807068-1p5Q2ol8'; // ★ご自身のLIFF ID
 
-        // ログ一覧とボタンの状態を更新する関数
-        function updateUI(statusData) {
-            const { records, lastAction } = statusData;
-            const logList = document.getElementById('log-list');
-            const statusDiv = document.getElementById('status');
-            
-            // ログの表示を更新
-            logList.innerHTML = '';
-            if (!records || records.length === 0) {
-                logList.innerHTML = '<li>今日の記録はまだありません。</li>';
-            } else {
-                records.sort((a, b) => a.timestamp - b.timestamp);
-                records.forEach(record => {
-                    const li = document.createElement('li');
-                    const time = new Date(record.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-                    let text = `${time} - ${record.event_type}`;
-                    if (record.event_type === '終了' && record.break_minutes) {
-                        text += ` (休憩: ${record.break_minutes}分)`;
-                    }
-                    li.textContent = text;
-                    logList.appendChild(li);
-                });
-            }
-
-            // ボタンの表示を更新
-            const buttons = {
-                '出発': document.getElementById('出発-button'),
-                '開始': document.getElementById('開始-button'),
-                '終了': document.getElementById('終了-button'),
-            };
-            Object.values(buttons).forEach(btn => btn.classList.add('hidden'));
-
-            let nextAction = '出発';
-            if (lastAction === '出発') nextAction = '開始';
-            if (lastAction === '開始') nextAction = '終了';
-            if (lastAction === '終了') nextAction = '出発';
-
-            buttons[nextAction].classList.remove('hidden');
-            statusDiv.innerText = `次の操作: ${nextAction}`;
-        }
-
-        // 今日の記録状態を取得する関数
-        async function fetchStatus(userId) {
-            const statusDiv = document.getElementById('status');
-            let response;
-            try {
-                response = await fetch('/.netlify/functions/status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId })
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message || 'サーバーからエラーが返されました。');
-                
-                updateUI(result);
-
-            } catch (error) {
-                let errorMessage = `状態の取得に失敗: ${error.message}`;
-                if (response) {
-                    errorMessage += ` (HTTP Status: ${response.status})`;
-                }
-                statusDiv.innerText = `❌ ${errorMessage}`;
-            }
-        }
-
         async function main() {
+            const statusDiv = document.getElementById('status');
             try {
                 await liff.init({ liffId: LIFF_ID });
                 if (!liff.isLoggedIn()) {
                     liff.login();
                     return;
                 }
-                const profile = await liff.getProfile();
-                await fetchStatus(profile.userId);
+                
+                // URLのハッシュ(#)からアクションを決定
+                const hash = window.location.hash.substring(1); // #を取り除く
+                let action;
+                switch(hash) {
+                    case 'depart': action = '出発'; break;
+                    case 'start': action = '開始'; break;
+                    case 'end': action = '終了'; break;
+                    default:
+                        throw new Error('アクションが指定されていません。URLの末尾に #depart, #start, #end のいずれかを追加してください。');
+                }
+
+                document.getElementById('action-title').innerText = `${action}時刻を記録します`;
+
+                if (action === '終了') {
+                    // 終了の場合は休憩フォームを表示
+                    document.getElementById('break-section').style.display = 'block';
+                    statusDiv.innerText = '休憩時間を選択してください。';
+                } else {
+                    // 出発・開始の場合は即座に記録
+                    await recordTime(action);
+                }
+
             } catch (error) {
-                document.getElementById('status').innerText = `❌ 初期化エラー: ${error.message}`;
+                statusDiv.innerText = `❌ 初期化エラー: ${error.message}`;
             }
         }
         main();
-
-        function showBreakOptions() {
-            document.getElementById('break-section').style.display = 'block';
-            document.querySelector('.button-group').style.display = 'none';
-        }
 
         async function recordTime(actionType) {
             const statusDiv = document.getElementById('status');
@@ -160,7 +97,9 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message || 'サーバーからエラーが返されました。');
                 
-                await fetchStatus(profile.userId);
+                statusDiv.innerText = `✅ ${result.message}\nこのウィンドウは閉じて構いません。`;
+                // 成功したら自動で閉じる
+                setTimeout(() => liff.closeWindow(), 2000);
 
             } catch (error) {
                 let errorMessage = `エラー: ${error.message}`;
@@ -170,10 +109,6 @@
                 statusDiv.innerText = `❌ ${errorMessage}`;
             } finally {
                 allButtons.forEach(b => b.disabled = false);
-                 if (actionType === '終了') {
-                    document.getElementById('break-section').style.display = 'none';
-                    document.querySelector('.button-group').style.display = 'block';
-                 }
             }
         }
     </script>
