@@ -64,14 +64,14 @@ exports.handler = async (event) => {
         
         const timestamp = new Date().getTime();
         let fields = {
-            'uid': userId,
-            'name': displayName,
-            'イベント種別': action,
-            'タイムスタンプ': timestamp,
+            'line_user_id': userId,
+            'display_name': displayName,
+            'event_type': action,
+            'timestamp': timestamp,
         };
 
         if (action === '終了' && breakTime) {
-            fields['休憩'] = breakTime;
+            fields['break_minutes'] = breakTime;
         }
         
         const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
