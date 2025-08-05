@@ -43,8 +43,7 @@ function requestLarkAPI(token, method, path, body = null) {
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => {
                 const d = JSON.parse(data);
-                // 診断のため、エラーでもそのまま返す
-                resolve(d);
+                d.code !== 0 ? reject(new Error(`Lark API Error: ${d.msg}`)) : resolve(d);
             });
         });
         req.on('error', (e) => reject(e));
@@ -53,13 +52,17 @@ function requestLarkAPI(token, method, path, body = null) {
     });
 }
 
-// 今日の日付とユーザーIDでLarkのレコードを検索する関数
-async function findTodaysRecord(token, userId) {
+// 今日の日付とユーザーIDでLarkの全レコードを検索する関数
+async function findTodaysRecords(token, userId) {
     const jstOffset = 9 * 60 * 60 * 1000;
     const now = new Date();
     const jstNow = new Date(now.getTime() + jstOffset);
+    
     const startOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T00:00:00.000Z');
+    const endOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T23:59:59.999Z');
+
     const startOfDayTimestamp = startOfDayJST.getTime();
+    const endOfDayTimestamp = endOfDayJST.getTime();
 
     const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
     const body = {
@@ -67,59 +70,35 @@ async function findTodaysRecord(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] }
+                { field_name: "タイムスタンプ", operator: "isGreaterEqual", value: [startOfDayTimestamp] },
+                { field_name: "タイムスタンプ", operator: "isLessEqual", value: [endOfDayTimestamp] }
             ]
         }
     };
     const response = await requestLarkAPI(token, 'POST', path, body);
-    // エラーチェックを追加
-    if (response.code !== 0) {
-        throw new Error(`Lark API Error: ${response.msg}`);
-    }
-    return response.data.items[0];
+    return response.data.items || [];
 }
 
 // メインの処理
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
-    // ★★★ 診断用：環境変数をログに出力 ★★★
-    console.log("--- DIAGNOSTIC INFO ---");
-    console.log("Using LARK_BASE_ID:", LARK_BASE_ID);
-    console.log("Using LARK_TABLE_ID:", LARK_TABLE_ID);
-    console.log("-----------------------");
-
     try {
         const data = JSON.parse(event.body);
         const { userId } = data;
         
         const larkToken = await getLarkToken();
-        const todaysRecord = await findTodaysRecord(larkToken, userId);
+        const todaysRecords = await findTodaysRecords(larkToken, userId);
 
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                record: todaysRecord ? todaysRecord.fields : null,
-                // ★★★ 診断用：環境変数をLIFFアプリに返す ★★★
-                diagnostic: {
-                    baseId: LARK_BASE_ID,
-                    tableId: LARK_TABLE_ID
-                }
+                records: todaysRecords.map(r => r.fields)
             }),
         };
 
     } catch (error) {
         console.error('Error:', error);
-        return { 
-            statusCode: 500, 
-            body: JSON.stringify({ 
-                message: `状態の取得に失敗しました: ${error.message}`,
-                // ★★★ 診断用：エラー時も環境変数を返す ★★★
-                diagnostic: {
-                    baseId: LARK_BASE_ID,
-                    tableId: LARK_TABLE_ID
-                }
-            }) 
-        };
+        return { statusCode: 500, body: JSON.stringify({ message: `状態の取得に失敗しました: ${error.message}` }) };
     }
 };
