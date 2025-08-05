@@ -43,7 +43,8 @@ function requestLarkAPI(token, method, path, body = null) {
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => {
                 const d = JSON.parse(data);
-                d.code !== 0 ? reject(new Error(`Lark API Error: ${d.msg}`)) : resolve(d);
+                // 診断のため、エラーでもそのまま返す
+                resolve(d);
             });
         });
         req.on('error', (e) => reject(e));
@@ -66,11 +67,15 @@ async function findTodaysRecord(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] } // ★★★ 更新点 ★★★
+                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] }
             ]
         }
     };
     const response = await requestLarkAPI(token, 'POST', path, body);
+    // エラーチェックを追加
+    if (response.code !== 0) {
+        throw new Error(`Lark API Error: ${response.msg}`);
+    }
     return response.data.items[0];
 }
 
@@ -78,48 +83,43 @@ async function findTodaysRecord(token, userId) {
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
+    // ★★★ 診断用：環境変数をログに出力 ★★★
+    console.log("--- DIAGNOSTIC INFO ---");
+    console.log("Using LARK_BASE_ID:", LARK_BASE_ID);
+    console.log("Using LARK_TABLE_ID:", LARK_TABLE_ID);
+    console.log("-----------------------");
+
     try {
         const data = JSON.parse(event.body);
-        const { userId, displayName, action, breakTime } = data;
-
-        const larkToken = await getLarkToken();
-        const existingRecord = await findTodaysRecord(larkToken, userId);
+        const { userId } = data;
         
-        const timestamp = new Date().getTime();
-        let fields = {};
-
-        if (action === '終了' && breakTime) {
-            fields[action] = timestamp;
-            fields['休憩'] = breakTime;
-        } else {
-            fields[action] = timestamp;
-        }
-
-        if (existingRecord) {
-            // レコードがあれば更新
-            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/${existingRecord.record_id}`;
-            await requestLarkAPI(larkToken, 'PUT', path, { fields });
-        } else {
-            // なければ新規作成
-            const jstOffset = 9 * 60 * 60 * 1000;
-            const jstDate = new Date(timestamp + jstOffset);
-            jstDate.setUTCHours(0, 0, 0, 0);
-            const dateTimestamp = jstDate.getTime() - jstOffset;
-
-            fields.uid = userId;
-            fields.name = displayName;
-            fields['record_date'] = dateTimestamp; // ★★★ 更新点 ★★★
-            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
-            await requestLarkAPI(larkToken, 'POST', path, { fields });
-        }
+        const larkToken = await getLarkToken();
+        const todaysRecord = await findTodaysRecord(larkToken, userId);
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ message: `${action}時刻を記録しました。` }),
+            body: JSON.stringify({ 
+                record: todaysRecord ? todaysRecord.fields : null,
+                // ★★★ 診断用：環境変数をLIFFアプリに返す ★★★
+                diagnostic: {
+                    baseId: LARK_BASE_ID,
+                    tableId: LARK_TABLE_ID
+                }
+            }),
         };
 
     } catch (error) {
         console.error('Error:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: `記録に失敗しました: ${error.message}` }) };
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ 
+                message: `状態の取得に失敗しました: ${error.message}`,
+                // ★★★ 診断用：エラー時も環境変数を返す ★★★
+                diagnostic: {
+                    baseId: LARK_BASE_ID,
+                    tableId: LARK_TABLE_ID
+                }
+            }) 
+        };
     }
 };
