@@ -47,32 +47,33 @@
     </div>
 
     <script>
-        const LIFF_ID = '2007807068-1p5Q2ol8'; // ★お客様のIDに設定済み
+        const LIFF_ID = 'YOUR_LIFF_ID_HERE'; // ★ご自身のLIFF ID
 
         // ログ一覧とボタンの状態を更新する関数
         function updateUI(statusData) {
-            const { records, lastAction } = statusData;
+            const { record } = statusData;
             const logList = document.getElementById('log-list');
             const statusDiv = document.getElementById('status');
             
             // ログの表示を更新
             logList.innerHTML = '';
-            if (!records || records.length === 0) {
+            if (!record) {
                 logList.innerHTML = '<li>今日の記録はまだありません。</li>';
             } else {
-                records.sort((a, b) => a.タイムスタンプ - b.タイムスタンプ);
-                records.forEach(record => {
-                    // ★★★ 更新点：データが存在するかチェック ★★★
-                    if (!record || !record.タイムスタンプ || !record.イベント種別) return;
-
-                    const li = document.createElement('li');
-                    const time = new Date(record.タイムスタンプ).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-                    let text = `${time} - ${record.イベント種別}`;
-                    if (record.イベント種別 === '終了' && record.休憩) {
-                        text += ` (休憩: ${record.休憩}分)`;
+                const actions = ['出発', '開始', '終了', '休憩'];
+                actions.forEach(action => {
+                    if (record[action]) {
+                        const li = document.createElement('li');
+                        let text = '';
+                        if (action === '休憩') {
+                            text = `休憩: ${record[action]}分`;
+                        } else {
+                            const time = new Date(record[action]).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                            text = `${action}: ${time}`;
+                        }
+                        li.textContent = text;
+                        logList.appendChild(li);
                     }
-                    li.textContent = text;
-                    logList.appendChild(li);
                 });
             }
 
@@ -85,12 +86,18 @@
             Object.values(buttons).forEach(btn => btn.classList.add('hidden'));
 
             let nextAction = '出発';
-            if (lastAction === '出発') nextAction = '開始';
-            if (lastAction === '開始') nextAction = '終了';
-            if (lastAction === '終了') nextAction = '出発';
+            if (record) {
+                if (record['出発'] && !record['開始']) nextAction = '開始';
+                else if (record['開始'] && !record['終了']) nextAction = '終了';
+                else if (record['終了']) nextAction = null; // 全て終了
+            }
 
-            buttons[nextAction].classList.remove('hidden');
-            statusDiv.innerText = `次の操作: ${nextAction}`;
+            if (nextAction) {
+                buttons[nextAction].classList.remove('hidden');
+                statusDiv.innerText = `次の操作: ${nextAction}`;
+            } else {
+                statusDiv.innerText = '本日の業務はすべて記録済みです。';
+            }
         }
 
         // 今日の記録状態を取得する関数
