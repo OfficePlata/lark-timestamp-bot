@@ -1,0 +1,110 @@
+const https = require('https');
+
+const { LARK_APP_ID, LARK_APP_SECRET, LARK_BASE_ID, LARK_TABLE_ID } = process.env;
+
+// 日本時間の今日の日付をYYYY-MM-DD形式で取得する関数
+function getJSTDateString() {
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstDate = new Date(now.getTime() + jstOffset);
+    return jstDate.toISOString().split('T')[0];
+}
+
+// Larkのアクセストークンを取得する関数
+function getLarkToken() {
+    return new Promise((resolve, reject) => {
+        const postData = JSON.stringify({ app_id: LARK_APP_ID, app_secret: LARK_APP_SECRET });
+        const options = {
+            hostname: 'open.larksuite.com',
+            path: '/open-apis/auth/v3/tenant_access_token/internal',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+        };
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                const d = JSON.parse(data);
+                d.code !== 0 ? reject(new Error(`Lark Token Error: ${d.msg}`)) : resolve(d.tenant_access_token);
+            });
+        });
+        req.on('error', (e) => reject(e));
+        req.write(postData);
+        req.end();
+    });
+}
+
+// 汎用的なLark APIリクエスト関数
+function requestLarkAPI(token, method, path, body = null) {
+     return new Promise((resolve, reject) => {
+        const postData = body ? JSON.stringify(body) : null;
+        const options = {
+            hostname: 'open.larksuite.com',
+            path: path,
+            method: method.toUpperCase(),
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        };
+        if(postData) options.headers['Content-Length'] = Buffer.byteLength(postData);
+        
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                const d = JSON.parse(data);
+                d.code !== 0 ? reject(new Error(`Lark API Error: ${d.msg}`)) : resolve(d);
+            });
+        });
+        req.on('error', (e) => reject(e));
+        if(postData) req.write(postData);
+        req.end();
+    });
+}
+
+// 今日の日付とユーザーIDでLarkの全レコードを検索する関数
+async function findTodaysRecords(token, userId) {
+    const today = getJSTDateString();
+    const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
+    const body = {
+        filter: {
+            conjunction: "and",
+            conditions: [
+                { field_name: "uid", operator: "is", value: [userId] },
+                { field_name: "日付", operator: "is", value: [today] }
+            ]
+        }
+    };
+    const response = await requestLarkAPI(token, 'POST', path, body);
+    return response.data.items || [];
+}
+
+// メインの処理
+exports.handler = async (event) => {
+    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+
+    try {
+        const data = JSON.parse(event.body);
+        const { userId } = data;
+        
+        const larkToken = await getLarkToken();
+        const todaysRecords = await findTodaysRecords(larkToken, userId);
+
+        let lastAction = null;
+        if (todaysRecords.length > 0) {
+            // タイムスタンプでソートして最新のレコードを取得
+            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
+            lastAction = todaysRecords[0].fields.イベント種別;
+        }
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ 
+                records: todaysRecords.map(r => r.fields),
+                lastAction: lastAction
+            }),
+        };
+
+    } catch (error) {
+        console.error('Error:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: `状態の取得に失敗しました: ${error.message}` }) };
+    }
+};
