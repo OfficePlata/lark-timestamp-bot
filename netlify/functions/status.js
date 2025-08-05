@@ -66,7 +66,7 @@ async function findTodaysRecord(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "日付", operator: "is", value: [startOfDayTimestamp] }
+                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] } // ★★★ 更新点 ★★★
             ]
         }
     };
