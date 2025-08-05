@@ -86,3 +86,4 @@ exports.handler = async (event) => {
         console.error('Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `記録に失敗しました: ${error.message}` }) };
     }
+};
