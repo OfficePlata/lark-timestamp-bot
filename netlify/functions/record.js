@@ -52,29 +52,7 @@ function requestLarkAPI(token, method, path, body = null) {
     });
 }
 
-// 今日の日付とユーザーIDでLarkのレコードを検索する関数
-async function findTodaysRecord(token, userId) {
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const now = new Date();
-    const jstNow = new Date(now.getTime() + jstOffset);
-    const startOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T00:00:00.000Z');
-    const startOfDayTimestamp = startOfDayJST.getTime();
-
-    const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
-    const body = {
-        filter: {
-            conjunction: "and",
-            conditions: [
-                { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] } // ★★★ 更新点 ★★★
-            ]
-        }
-    };
-    const response = await requestLarkAPI(token, 'POST', path, body);
-    return response.data.items[0];
-}
-
-// メインの処理
+// メインの処理: 常に新しいレコードを作成する
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
@@ -83,35 +61,21 @@ exports.handler = async (event) => {
         const { userId, displayName, action, breakTime } = data;
 
         const larkToken = await getLarkToken();
-        const existingRecord = await findTodaysRecord(larkToken, userId);
         
         const timestamp = new Date().getTime();
-        let fields = {};
+        let fields = {
+            'uid': userId,
+            'name': displayName,
+            'イベント種別': action,
+            'タイムスタンプ': timestamp,
+        };
 
         if (action === '終了' && breakTime) {
-            fields[action] = timestamp;
             fields['休憩'] = breakTime;
-        } else {
-            fields[action] = timestamp;
         }
-
-        if (existingRecord) {
-            // レコードがあれば更新
-            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/${existingRecord.record_id}`;
-            await requestLarkAPI(larkToken, 'PUT', path, { fields });
-        } else {
-            // なければ新規作成
-            const jstOffset = 9 * 60 * 60 * 1000;
-            const jstDate = new Date(timestamp + jstOffset);
-            jstDate.setUTCHours(0, 0, 0, 0);
-            const dateTimestamp = jstDate.getTime() - jstOffset;
-
-            fields.uid = userId;
-            fields.name = displayName;
-            fields['record_date'] = dateTimestamp; // ★★★ 更新点 ★★★
-            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
-            await requestLarkAPI(larkToken, 'POST', path, { fields });
-        }
+        
+        const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
+        await requestLarkAPI(larkToken, 'POST', path, { fields });
 
         return {
             statusCode: 200,
