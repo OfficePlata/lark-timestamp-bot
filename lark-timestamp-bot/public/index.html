@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>休憩時間を入力してください</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body>
+    <p style="text-align: center; padding-top: 40px; font-family: sans-serif;">フォームを準備しています...</p>
+    <script>
+        // ===== ▼▼▼ あなたが設定する場所 START ▼▼▼ =====
+
+        // 【設定1】LINE Developersコンソールで取得する「LIFF ID」
+        const LIFF_ID = '2007807068-1p5Q2ol8'; 
+
+        // 【設定2】ステップ1でコピーした「休憩時間入力フォームのURL」
+        const LARK_BREAK_TIME_FORM_URL = 'https://yjpw4ydvu698.jp.larksuite.com/share/base/form/shrjpVETzopEgkeKjqruhsgJtag'; 
+
+        // 【設定3】Lark Baseのフィールド名 (このガイド通りなら変更不要)
+        const LARK_FIELD_UID = 'uid'; 
+        const LARK_FIELD_NAME = 'name';
+
+        // ===== ▲▲▲ あなたが設定する場所 END ▲▲▲ =====
+
+        async function main() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return;
+                }
+                const profile = await liff.getProfile();
+                const finalUrl = `${LARK_BREAK_TIME_FORM_URL}?prefill_${encodeURIComponent(LARK_FIELD_UID)}=${encodeURIComponent(profile.userId)}&prefill_${encodeURIComponent(LARK_FIELD_NAME)}=${encodeURIComponent(profile.displayName)}`;
+                window.location.replace(finalUrl);
+            } catch (error) {
+                console.error('LIFF Error:', error);
+                document.body.innerHTML = `<p>エラーが発生しました: ${error.message}</p>`;
+            }
+        }
+        main();
+    </script>
+</body>
+</html>
