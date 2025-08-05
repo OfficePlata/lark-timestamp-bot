@@ -52,18 +52,13 @@ function requestLarkAPI(token, method, path, body = null) {
     });
 }
 
-// 今日の日付とユーザーIDでLarkの全レコードを検索する関数
-async function findTodaysRecords(token, userId) {
-    // ★★★ 更新点：日付の検索も数字（タイムスタンプ）で行う ★★★
+// 今日の日付とユーザーIDでLarkのレコードを検索する関数
+async function findTodaysRecord(token, userId) {
     const jstOffset = 9 * 60 * 60 * 1000;
     const now = new Date();
     const jstNow = new Date(now.getTime() + jstOffset);
-    
     const startOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T00:00:00.000Z');
-    const endOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T23:59:59.999Z');
-
     const startOfDayTimestamp = startOfDayJST.getTime();
-    const endOfDayTimestamp = endOfDayJST.getTime();
 
     const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
     const body = {
@@ -71,13 +66,12 @@ async function findTodaysRecords(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "日付", operator: "isGreaterEqual", value: [startOfDayTimestamp] },
-                { field_name: "日付", operator: "isLessEqual", value: [endOfDayTimestamp] }
+                { field_name: "日付", operator: "is", value: [startOfDayTimestamp] }
             ]
         }
     };
     const response = await requestLarkAPI(token, 'POST', path, body);
-    return response.data.items || [];
+    return response.data.items[0];
 }
 
 // メインの処理
@@ -89,19 +83,12 @@ exports.handler = async (event) => {
         const { userId } = data;
         
         const larkToken = await getLarkToken();
-        const todaysRecords = await findTodaysRecords(larkToken, userId);
-
-        let lastAction = null;
-        if (todaysRecords.length > 0) {
-            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
-            lastAction = todaysRecords[0].fields.イベント種別;
-        }
+        const todaysRecord = await findTodaysRecord(larkToken, userId);
 
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                records: todaysRecords.map(r => r.fields),
-                lastAction: lastAction
+                record: todaysRecord ? todaysRecord.fields : null
             }),
         };
 
