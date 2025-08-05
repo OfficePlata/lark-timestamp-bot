@@ -60,13 +60,13 @@
             if (!records || records.length === 0) {
                 logList.innerHTML = '<li>今日の記録はまだありません。</li>';
             } else {
-                records.sort((a, b) => a.タイムスタンプ - b.タイムスタンプ);
+                records.sort((a, b) => a.timestamp - b.timestamp);
                 records.forEach(record => {
                     const li = document.createElement('li');
-                    const time = new Date(record.タイムスタンプ).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-                    let text = `${time} - ${record.イベント種別}`;
-                    if (record.イベント種別 === '終了' && record.休憩) {
-                        text += ` (休憩: ${record.休憩}分)`;
+                    const time = new Date(record.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                    let text = `${time} - ${record.event_type}`;
+                    if (record.event_type === '終了' && record.break_minutes) {
+                        text += ` (休憩: ${record.break_minutes}分)`;
                     }
                     li.textContent = text;
                     logList.appendChild(li);
