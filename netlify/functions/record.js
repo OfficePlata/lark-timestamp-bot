@@ -1,3 +1,5 @@
+const https = require('https');
+
 const { LARK_APP_ID, LARK_APP_SECRET, LARK_BASE_ID, LARK_TABLE_ID } = process.env;
 
 // Larkのアクセストークンを取得する関数
@@ -64,7 +66,7 @@ async function findTodaysRecord(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "日付", operator: "is", value: [startOfDayTimestamp] }
+                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] } // ★★★ 更新点 ★★★
             ]
         }
     };
@@ -106,7 +108,7 @@ exports.handler = async (event) => {
 
             fields.uid = userId;
             fields.name = displayName;
-            fields['日付'] = dateTimestamp;
+            fields['record_date'] = dateTimestamp; // ★★★ 更新点 ★★★
             const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
             await requestLarkAPI(larkToken, 'POST', path, { fields });
         }
@@ -121,4 +123,3 @@ exports.handler = async (event) => {
         return { statusCode: 500, body: JSON.stringify({ message: `記録に失敗しました: ${error.message}` }) };
     }
 };
-
