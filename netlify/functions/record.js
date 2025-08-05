@@ -66,7 +66,7 @@ async function findTodaysRecord(token, userId) {
             conjunction: "and",
             conditions: [
                 { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] }
+                { field_name: "record_date", operator: "is", value: [startOfDayTimestamp] } // ★★★ 更新点 ★★★
             ]
         }
     };
@@ -108,7 +108,7 @@ exports.handler = async (event) => {
 
             fields.uid = userId;
             fields.name = displayName;
-            fields['record_date'] = dateTimestamp;
+            fields['record_date'] = dateTimestamp; // ★★★ 更新点 ★★★
             const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
             await requestLarkAPI(larkToken, 'POST', path, { fields });
         }
