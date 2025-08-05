@@ -69,9 +69,9 @@ async function findTodaysRecords(token, userId) {
         filter: {
             conjunction: "and",
             conditions: [
-                { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "タイムスタンプ", operator: "isGreaterEqual", value: [startOfDayTimestamp] },
-                { field_name: "タイムスタンプ", operator: "isLessEqual", value: [endOfDayTimestamp] }
+                { field_name: "line_user_id", operator: "is", value: [userId] },
+                { field_name: "timestamp", operator: "isGreaterEqual", value: [startOfDayTimestamp] },
+                { field_name: "timestamp", operator: "isLessEqual", value: [endOfDayTimestamp] }
             ]
         }
     };
@@ -92,9 +92,8 @@ exports.handler = async (event) => {
 
         let lastAction = null;
         if (todaysRecords.length > 0) {
-            // タイムスタンプでソートして最新のレコードを取得
-            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
-            lastAction = todaysRecords[0].fields.イベント種別;
+            todaysRecords.sort((a, b) => b.fields.timestamp - a.fields.timestamp);
+            lastAction = todaysRecords[0].fields.event_type;
         }
 
         return {
