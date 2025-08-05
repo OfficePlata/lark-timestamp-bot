@@ -13,7 +13,7 @@
         #end-button { grid-column: 1 / -1; }
         #break-section { display: none; margin-top: 20px; }
         select { padding: 10px; font-size: 16px; width: 100%; margin-bottom: 15px; }
-        #status { margin-top: 20px; padding: 15px; background-color: #f0f0f0; border-radius: 8px; }
+        #status { margin-top: 20px; padding: 15px; background-color: #f0f0f0; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
 <body>
@@ -40,7 +40,7 @@
     <div id="status">ステータス：準備中...</div>
 
     <script>
-        const LIFF_ID = '2007807068-1p5Q2ol8'; // ★後で設定
+        const LIFF_ID = '2007807068-1p5Q2ol8'; // ★ご自身のLIFF ID
 
         async function main() {
             const statusDiv = document.getElementById('status');
@@ -68,7 +68,8 @@
             const buttons = document.querySelectorAll('button');
             buttons.forEach(b => b.disabled = true);
             statusDiv.innerText = `${actionType}時刻を記録中...`;
-
+            
+            let response; // responseをtryの外で定義
             try {
                 const profile = await liff.getProfile();
                 const breakTime = document.getElementById('break-time').value;
@@ -80,7 +81,7 @@
                     breakTime: actionType === '終了' ? breakTime : null
                 };
 
-                const response = await fetch('/.netlify/functions/record', {
+                response = await fetch('/.netlify/functions/record', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -88,13 +89,18 @@
 
                 const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.message || 'サーバーでエラーが発生しました。');
+                    throw new Error(result.message || 'サーバーからエラーが返されました。');
                 }
                 
                 statusDiv.innerText = `✅ ${result.message}`;
 
             } catch (error) {
-                statusDiv.innerText = `❌ エラー: ${error.message}`;
+                let errorMessage = error.message;
+                // responseが存在すれば、ステータスコードを追加
+                if (response) {
+                    errorMessage += ` (HTTP Status: ${response.status})`;
+                }
+                statusDiv.innerText = `❌ エラー: ${errorMessage}`;
             } finally {
                 buttons.forEach(b => b.disabled = false);
             }
