@@ -2,14 +2,6 @@ const https = require('https');
 
 const { LARK_APP_ID, LARK_APP_SECRET, LARK_BASE_ID, LARK_TABLE_ID } = process.env;
 
-// 日本時間の今日の日付をYYYY-MM-DD形式で取得する関数
-function getJSTDateString() {
-    const now = new Date();
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const jstDate = new Date(now.getTime() + jstOffset);
-    return jstDate.toISOString().split('T')[0];
-}
-
 // Larkのアクセストークンを取得する関数
 function getLarkToken() {
     return new Promise((resolve, reject) => {
@@ -71,10 +63,17 @@ exports.handler = async (event) => {
         const larkToken = await getLarkToken();
         
         const timestamp = new Date().getTime();
+        
+        // ★★★ 更新点：日付も数字（タイムスタンプ）で記録 ★★★
+        const jstOffset = 9 * 60 * 60 * 1000;
+        const jstDate = new Date(timestamp + jstOffset);
+        jstDate.setUTCHours(0, 0, 0, 0);
+        const dateTimestamp = jstDate.getTime() - jstOffset;
+
         let fields = {
             'uid': userId,
             'name': displayName,
-            '日付': getJSTDateString(),
+            '日付': dateTimestamp,
             'イベント種別': action,
             'タイムスタンプ': timestamp,
         };
