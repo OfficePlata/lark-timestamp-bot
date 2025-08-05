@@ -1,4 +1,4 @@
-const https = require('https://');
+const https = require('https');
 
 // Netlifyの環境変数から設定を読み込み
 const {
