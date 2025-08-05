@@ -43,25 +43,22 @@
                     return;
                 }
                 
-                // URLのハッシュ(#)からアクションを決定
-                const hash = window.location.hash.substring(1); // #を取り除く
+                const hash = window.location.hash.substring(1);
                 let action;
                 switch(hash) {
                     case 'depart': action = '出発'; break;
                     case 'start': action = '開始'; break;
                     case 'end': action = '終了'; break;
                     default:
-                        throw new Error('アクションが指定されていません。URLの末尾に #depart, #start, #end のいずれかを追加してください。');
+                        throw new Error('アクションが指定されていません。');
                 }
 
                 document.getElementById('action-title').innerText = `${action}時刻を記録します`;
 
                 if (action === '終了') {
-                    // 終了の場合は休憩フォームを表示
                     document.getElementById('break-section').style.display = 'block';
                     statusDiv.innerText = '休憩時間を選択してください。';
                 } else {
-                    // 出発・開始の場合は即座に記録
                     await recordTime(action);
                 }
 
@@ -97,9 +94,9 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message || 'サーバーからエラーが返されました。');
                 
-                statusDiv.innerText = `✅ ${result.message}\nこのウィンドウは閉じて構いません。`;
-                // 成功したら自動で閉じる
-                setTimeout(() => liff.closeWindow(), 2000);
+                statusDiv.innerText = `✅ ${result.message}\nトーク画面をご確認ください。`;
+                // 3秒後にウィンドウを閉じる
+                setTimeout(() => liff.closeWindow(), 3000);
 
             } catch (error) {
                 let errorMessage = `エラー: ${error.message}`;
@@ -108,7 +105,7 @@
                 }
                 statusDiv.innerText = `❌ ${errorMessage}`;
             } finally {
-                allButtons.forEach(b => b.disabled = false);
+                // ボタンの無効化は解除しない（ウィンドウが閉じるため）
             }
         }
     </script>
