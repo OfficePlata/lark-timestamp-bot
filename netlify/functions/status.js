@@ -80,20 +80,46 @@ exports.handler = async (event) => {
 
     try {
         const data = JSON.parse(event.body);
-        const { userId } = data;
-        
+        const { userId, displayName, action, breakTime } = data;
+
         const larkToken = await getLarkToken();
-        const todaysRecord = await findTodaysRecord(larkToken, userId);
+        const existingRecord = await findTodaysRecord(larkToken, userId);
+        
+        const timestamp = new Date().getTime();
+        let fields = {};
+
+        if (action === '終了' && breakTime) {
+            fields[action] = timestamp;
+            fields['休憩'] = breakTime;
+        } else {
+            fields[action] = timestamp;
+        }
+
+        if (existingRecord) {
+            // レコードがあれば更新
+            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/${existingRecord.record_id}`;
+            await requestLarkAPI(larkToken, 'PUT', path, { fields });
+        } else {
+            // なければ新規作成
+            const jstOffset = 9 * 60 * 60 * 1000;
+            const jstDate = new Date(timestamp + jstOffset);
+            jstDate.setUTCHours(0, 0, 0, 0);
+            const dateTimestamp = jstDate.getTime() - jstOffset;
+
+            fields.uid = userId;
+            fields.name = displayName;
+            fields['record_date'] = dateTimestamp; // ★★★ 更新点 ★★★
+            const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
+            await requestLarkAPI(larkToken, 'POST', path, { fields });
+        }
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ 
-                record: todaysRecord ? todaysRecord.fields : null
-            }),
+            body: JSON.stringify({ message: `${action}時刻を記録しました。` }),
         };
 
     } catch (error) {
         console.error('Error:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: `状態の取得に失敗しました: ${error.message}` }) };
+        return { statusCode: 500, body: JSON.stringify({ message: `記録に失敗しました: ${error.message}` }) };
     }
 };
