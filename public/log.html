@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今日の記録</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; text-align: center; background-color: #f4f6f8; }
+        .container { max-width: 400px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        #status { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 8px; font-weight: 500; }
+        #log-container { margin-top: 20px; text-align: left; }
+        #log-list { list-style-type: none; padding: 0; }
+        #log-list li { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>今日の記録</h1>
+        <ul id="log-list">
+            <li>記録を読み込んでいます...</li>
+        </ul>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const LIFF_ID = '2007807068-jMLaA4x0'; // ★次のステップで新しく取得します
+
+        // ログ一覧を画面に表示する関数
+        function renderLog(records) {
+            const logList = document.getElementById('log-list');
+            logList.innerHTML = '';
+            if (!records || records.length === 0) {
+                logList.innerHTML = '<li>今日の記録はまだありません。</li>';
+                return;
+            }
+            records.sort((a, b) => a.timestamp - b.timestamp);
+            records.forEach(record => {
+                const li = document.createElement('li');
+                const time = new Date(record.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+                let text = `${time} - ${record.event_type}`;
+                if (record.event_type === '終了' && record.break_minutes) {
+                    text += ` (休憩: ${record.break_minutes}分)`;
+                }
+                li.textContent = text;
+                logList.appendChild(li);
+            });
+        }
+
+        // 今日の記録状態を取得する関数
+        async function fetchStatus(userId) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = '記録を確認中...';
+            try {
+                const response = await fetch('/.netlify/functions/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                
+                renderLog(result.records);
+                statusDiv.innerText = '最新の記録です。';
+
+            } catch (error) {
+                statusDiv.innerText = `❌ 状態の取得に失敗: ${error.message}`;
+            }
+        }
+
+        async function main() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return;
+                }
+                const profile = await liff.getProfile();
+                await fetchStatus(profile.userId);
+            } catch (error) {
+                document.getElementById('status').innerText = `❌ 初期化エラー: ${error.message}`;
+            }
+        }
+        main();
+    </script>
+</body>
+</html>
