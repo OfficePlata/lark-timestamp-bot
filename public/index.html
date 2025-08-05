@@ -9,8 +9,10 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; text-align: center; background-color: #f4f6f8; }
         .container { max-width: 400px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h1 { color: #333; }
-        .button-group button { width: 100%; padding: 15px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; background-color: #007bff; color: white; transition: background-color 0.2s; font-weight: bold; margin-bottom: 15px; }
-        .button-group button.hidden { display: none; }
+        .button-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        button { padding: 15px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; background-color: #007bff; color: white; transition: background-color 0.2s; font-weight: bold; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        #end-button { grid-column: 1 / -1; }
         #break-section { display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
         select { padding: 10px; font-size: 16px; width: 100%; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; }
         #status { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 8px; min-height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 500; }
@@ -18,17 +20,15 @@
         #log-container h2 { font-size: 18px; border-bottom: 2px solid #007bff; padding-bottom: 5px; margin-bottom: 10px; }
         #log-list { list-style-type: none; padding: 0; }
         #log-list li { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 14px; }
-        /* ★★★ 診断用スタイル ★★★ */
-        #diagnostic-info { background-color: #fffbe6; border: 1px solid #ffe58f; padding: 10px; margin-top: 20px; text-align: left; font-size: 12px; word-wrap: break-word; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>タイムカード</h1>
-        <div class="button-group">
-            <button id="出発-button" class="hidden" onclick="recordTime('出発')">出発</button>
-            <button id="開始-button" class="hidden" onclick="recordTime('開始')">開始</button>
-            <button id="終了-button" class="hidden" onclick="showBreakOptions()">終了</button>
+        <div class="button-grid">
+            <button id="start-button" onclick="recordTime('出発')">出発</button>
+            <button id="begin-button" onclick="recordTime('開始')">開始</button>
+            <button id="end-button" onclick="showBreakOptions()">終了</button>
         </div>
         <div id="break-section">
             <label for="break-time">休憩時間（分）を選択してください:</label>
@@ -40,8 +40,6 @@
             <button onclick="recordTime('終了')">休憩時間を記録して終了</button>
         </div>
         <div id="status">ステータス：準備中...</div>
-        <!-- ★★★ 診断用エリア ★★★ -->
-        <div id="diagnostic-info">診断情報を取得中...</div>
         <div id="log-container">
             <h2>今日の記録</h2>
             <ul id="log-list">
@@ -53,12 +51,31 @@
     <script>
         const LIFF_ID = '2007807068-1p5Q2ol8'; // ★ご自身のLIFF ID
 
-        function updateUI(statusData) {
-            // (省略... V2.1と同じ)
+        // ログ一覧を画面に表示する関数
+        function renderLog(records) {
+            const logList = document.getElementById('log-list');
+            logList.innerHTML = '';
+            if (!records || records.length === 0) {
+                logList.innerHTML = '<li>今日の記録はまだありません。</li>';
+                return;
+            }
+            records.sort((a, b) => a.タイムスタンプ - b.タイムスタンプ);
+            records.forEach(record => {
+                const li = document.createElement('li');
+                const time = new Date(record.タイムスタンプ).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                let text = `${time} - ${record.イベント種別}`;
+                if (record.イベント種別 === '終了' && record.休憩) {
+                    text += ` (休憩: ${record.休憩}分)`;
+                }
+                li.textContent = text;
+                logList.appendChild(li);
+            });
         }
 
+        // 今日の記録状態を取得する関数
         async function fetchStatus(userId) {
-            const diagnosticDiv = document.getElementById('diagnostic-info');
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = '今日の記録を確認中...';
             try {
                 const response = await fetch('/.netlify/functions/status', {
                     method: 'POST',
@@ -66,67 +83,16 @@
                     body: JSON.stringify({ userId: userId })
                 });
                 const result = await response.json();
-
-                // ★★★ 診断用：受け取ったIDを表示 ★★★
-                if (result.diagnostic) {
-                    diagnosticDiv.innerHTML = `<b>診断情報 (Netlifyが使用中のID):</b><br>BASE_ID: ${result.diagnostic.baseId || '未設定'}<br>TABLE_ID: ${result.diagnostic.tableId || '未設定'}`;
-                } else {
-                     diagnosticDiv.innerText = '診断情報の取得に失敗しました。';
-                }
-
                 if (!response.ok) throw new Error(result.message);
                 
-                updateUI(result);
+                renderLog(result.records);
+                statusDiv.innerText = '準備完了';
 
             } catch (error) {
-                document.getElementById('status').innerText = `❌ 状態の取得に失敗: ${error.message}`;
+                statusDiv.innerText = `❌ 状態の取得に失敗: ${error.message}`;
             }
         }
 
-        // --- ここから下のコードはV2.1と同じです ---
-        function updateUI(statusData) {
-            const { record } = statusData;
-            const logList = document.getElementById('log-list');
-            const statusDiv = document.getElementById('status');
-            logList.innerHTML = '';
-            if (!record) {
-                logList.innerHTML = '<li>今日の記録はまだありません。</li>';
-            } else {
-                const actions = ['出発', '開始', '終了', '休憩'];
-                actions.forEach(action => {
-                    if (record[action]) {
-                        const li = document.createElement('li');
-                        let text = '';
-                        if (action === '休憩') {
-                            text = `休憩: ${record[action]}分`;
-                        } else {
-                            const time = new Date(record[action]).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-                            text = `${action}: ${time}`;
-                        }
-                        li.textContent = text;
-                        logList.appendChild(li);
-                    }
-                });
-            }
-            const buttons = {
-                '出発': document.getElementById('出発-button'),
-                '開始': document.getElementById('開始-button'),
-                '終了': document.getElementById('終了-button'),
-            };
-            Object.values(buttons).forEach(btn => btn.classList.add('hidden'));
-            let nextAction = '出発';
-            if (record) {
-                if (record['出発'] && !record['開始']) nextAction = '開始';
-                else if (record['開始'] && !record['終了']) nextAction = '終了';
-                else if (record['終了']) nextAction = null;
-            }
-            if (nextAction) {
-                buttons[nextAction].classList.remove('hidden');
-                statusDiv.innerText = `次の操作: ${nextAction}`;
-            } else {
-                statusDiv.innerText = '本日の業務はすべて記録済みです。';
-            }
-        }
         async function main() {
             try {
                 await liff.init({ liffId: LIFF_ID });
@@ -141,39 +107,47 @@
             }
         }
         main();
+
         function showBreakOptions() {
             document.getElementById('break-section').style.display = 'block';
-            document.querySelector('.button-group').style.display = 'none';
+            document.querySelector('.button-grid').style.display = 'none';
         }
+
         async function recordTime(actionType) {
             const statusDiv = document.getElementById('status');
             const allButtons = document.querySelectorAll('button');
             allButtons.forEach(b => b.disabled = true);
             statusDiv.innerText = `${actionType}時刻を記録中...`;
+
             try {
                 const profile = await liff.getProfile();
                 const breakTime = document.getElementById('break-time').value;
+
                 const payload = {
                     userId: profile.userId,
                     displayName: profile.displayName,
                     action: actionType,
                     breakTime: actionType === '終了' ? breakTime : null
                 };
+
                 const response = await fetch('/.netlify/functions/record', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
-                await fetchStatus(profile.userId);
+                
+                await fetchStatus(profile.userId); // 記録後にログを再取得して更新
+
             } catch (error) {
                 statusDiv.innerText = `❌ エラー: ${error.message}`;
             } finally {
                 allButtons.forEach(b => b.disabled = false);
                  if (actionType === '終了') {
                     document.getElementById('break-section').style.display = 'none';
-                    document.querySelector('.button-group').style.display = 'block';
+                    document.querySelector('.button-grid').style.display = 'grid';
                  }
             }
         }
