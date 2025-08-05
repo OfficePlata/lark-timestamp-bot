@@ -110,7 +110,7 @@ exports.handler = async (event) => {
 
         // ★★★ 新機能 ★★★
         // Larkへの記録成功後、LINEに通知を送信
-        const time = new Date(timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        const time = new Date(timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
         let notificationMessage = `【${action}】${time}に記録しました。`;
         if (action === '終了' && breakTime) {
             notificationMessage += `\n休憩時間: ${breakTime}分`;
