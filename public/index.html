@@ -47,7 +47,7 @@
     </div>
 
     <script>
-        const LIFF_ID = '2007807068-1p5Q2ol8'; // ★ご自身のLIFF ID
+        const LIFF_ID = '2007807068-1p5Q2ol8'; // ★お客様のIDに設定済み
 
         // ログ一覧とボタンの状態を更新する関数
         function updateUI(statusData) {
@@ -62,6 +62,9 @@
             } else {
                 records.sort((a, b) => a.タイムスタンプ - b.タイムスタンプ);
                 records.forEach(record => {
+                    // ★★★ 更新点：データが存在するかチェック ★★★
+                    if (!record || !record.タイムスタンプ || !record.イベント種別) return;
+
                     const li = document.createElement('li');
                     const time = new Date(record.タイムスタンプ).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
                     let text = `${time} - ${record.イベント種別}`;
@@ -79,13 +82,12 @@
                 '開始': document.getElementById('開始-button'),
                 '終了': document.getElementById('終了-button'),
             };
-            // 全てのボタンを一旦隠す
             Object.values(buttons).forEach(btn => btn.classList.add('hidden'));
 
             let nextAction = '出発';
             if (lastAction === '出発') nextAction = '開始';
             if (lastAction === '開始') nextAction = '終了';
-            if (lastAction === '終了') nextAction = '出発'; // 終了後は次の出発が可能
+            if (lastAction === '終了') nextAction = '出発';
 
             buttons[nextAction].classList.remove('hidden');
             statusDiv.innerText = `次の操作: ${nextAction}`;
@@ -155,7 +157,7 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 
-                await fetchStatus(profile.userId); // 記録後に状態を再取得してUIを更新
+                await fetchStatus(profile.userId);
 
             } catch (error) {
                 statusDiv.innerText = `❌ エラー: ${error.message}`;
