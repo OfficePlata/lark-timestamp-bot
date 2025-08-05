@@ -90,10 +90,18 @@ exports.handler = async (event) => {
         const larkToken = await getLarkToken();
         const todaysRecords = await findTodaysRecords(larkToken, userId);
 
+        let lastAction = null;
+        if (todaysRecords.length > 0) {
+            // タイムスタンプでソートして最新のレコードを取得
+            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
+            lastAction = todaysRecords[0].fields.イベント種別;
+        }
+
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                records: todaysRecords.map(r => r.fields)
+                records: todaysRecords.map(r => r.fields),
+                lastAction: lastAction
             }),
         };
 
