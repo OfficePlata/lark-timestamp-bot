@@ -52,16 +52,27 @@ function requestLarkAPI(token, method, path, body = null) {
     });
 }
 
-// ★★★ 診断用 ★★★
-// ユーザーIDだけでLarkの全レコードを検索する関数
-async function findUserRecords(token, userId) {
+// 今日の日付とユーザーIDでLarkの全レコードを検索する関数
+async function findTodaysRecords(token, userId) {
+    // ★★★ 更新点：日付の検索も数字（タイムスタンプ）で行う ★★★
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + jstOffset);
+    
+    const startOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T00:00:00.000Z');
+    const endOfDayJST = new Date(jstNow.toISOString().split('T')[0] + 'T23:59:59.999Z');
+
+    const startOfDayTimestamp = startOfDayJST.getTime();
+    const endOfDayTimestamp = endOfDayJST.getTime();
+
     const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
     const body = {
         filter: {
             conjunction: "and",
             conditions: [
-                // 「日付」での絞り込みを一時的にコメントアウト
-                { field_name: "uid", operator: "is", value: [userId] }
+                { field_name: "uid", operator: "is", value: [userId] },
+                { field_name: "日付", operator: "isGreaterEqual", value: [startOfDayTimestamp] },
+                { field_name: "日付", operator: "isLessEqual", value: [endOfDayTimestamp] }
             ]
         }
     };
@@ -78,21 +89,18 @@ exports.handler = async (event) => {
         const { userId } = data;
         
         const larkToken = await getLarkToken();
-        // 診断用の関数を呼び出す
-        const userRecords = await findUserRecords(larkToken, userId);
+        const todaysRecords = await findTodaysRecords(larkToken, userId);
 
         let lastAction = null;
-        if (userRecords.length > 0) {
-            // タイムスタンプでソートして最新のレコードを取得
-            userRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
-            lastAction = userRecords[0].fields.イベント種別;
+        if (todaysRecords.length > 0) {
+            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
+            lastAction = todaysRecords[0].fields.イベント種別;
         }
 
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                // 診断のため、日付で絞り込まずに全件返す
-                records: userRecords.map(r => r.fields),
+                records: todaysRecords.map(r => r.fields),
                 lastAction: lastAction
             }),
         };
