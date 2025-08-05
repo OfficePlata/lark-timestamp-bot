@@ -2,14 +2,6 @@ const https = require('https');
 
 const { LARK_APP_ID, LARK_APP_SECRET, LARK_BASE_ID, LARK_TABLE_ID } = process.env;
 
-// 日本時間の今日の日付をYYYY-MM-DD形式で取得する関数
-function getJSTDateString() {
-    const now = new Date();
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const jstDate = new Date(now.getTime() + jstOffset);
-    return jstDate.toISOString().split('T')[0];
-}
-
 // Larkのアクセストークンを取得する関数
 function getLarkToken() {
     return new Promise((resolve, reject) => {
@@ -60,16 +52,16 @@ function requestLarkAPI(token, method, path, body = null) {
     });
 }
 
-// 今日の日付とユーザーIDでLarkの全レコードを検索する関数
-async function findTodaysRecords(token, userId) {
-    const today = getJSTDateString();
+// ★★★ 診断用 ★★★
+// ユーザーIDだけでLarkの全レコードを検索する関数
+async function findUserRecords(token, userId) {
     const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records/search`;
     const body = {
         filter: {
             conjunction: "and",
             conditions: [
-                { field_name: "uid", operator: "is", value: [userId] },
-                { field_name: "日付", operator: "is", value: [today] }
+                // 「日付」での絞り込みを一時的にコメントアウト
+                { field_name: "uid", operator: "is", value: [userId] }
             ]
         }
     };
@@ -86,19 +78,21 @@ exports.handler = async (event) => {
         const { userId } = data;
         
         const larkToken = await getLarkToken();
-        const todaysRecords = await findTodaysRecords(larkToken, userId);
+        // 診断用の関数を呼び出す
+        const userRecords = await findUserRecords(larkToken, userId);
 
         let lastAction = null;
-        if (todaysRecords.length > 0) {
+        if (userRecords.length > 0) {
             // タイムスタンプでソートして最新のレコードを取得
-            todaysRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
-            lastAction = todaysRecords[0].fields.イベント種別;
+            userRecords.sort((a, b) => b.fields.タイムスタンプ - a.fields.タイムスタンプ);
+            lastAction = userRecords[0].fields.イベント種別;
         }
 
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                records: todaysRecords.map(r => r.fields),
+                // 診断のため、日付で絞り込まずに全件返す
+                records: userRecords.map(r => r.fields),
                 lastAction: lastAction
             }),
         };
