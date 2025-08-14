@@ -58,7 +58,7 @@ exports.handler = async (event) => {
 
     try {
         const data = JSON.parse(event.body);
-        const { userId, displayName, action, breakTime, location } = data; // locationを受け取る
+        const { userId, displayName, action, breakTime } = data;
 
         const larkToken = await getLarkToken();
         
@@ -72,12 +72,6 @@ exports.handler = async (event) => {
 
         if (action === '終了' && breakTime) {
             fields['break_minutes'] = breakTime;
-        }
-
-        // ★★★ 新機能 ★★★
-        // locationデータがあれば、fieldsに追加
-        if (action === '開始' && location) {
-            fields['location_info'] = `緯度: ${location.latitude}, 経度: ${location.longitude}`;
         }
         
         const path = `/open-apis/bitable/v1/apps/${LARK_BASE_ID}/tables/${LARK_TABLE_ID}/records`;
