@@ -87,32 +87,13 @@
                 // --- 仕事1: Larkへの記録 ---
                 const profile = await liff.getProfile();
                 const breakTime = document.getElementById('break-time').value;
-                let locationData = null;
 
-                // ★★★ 新機能 ★★★
-                // 「開始」の場合のみ、位置情報を取得
-                if (actionType === '開始') {
-                    try {
-                        statusDiv.innerText = '位置情報の許可をお願いします...';
-                        const location = await liff.getGeolocation();
-                        locationData = {
-                            latitude: location.latitude,
-                            longitude: location.longitude
-                        };
-                        statusDiv.innerText = '位置情報を取得しました。記録中...';
-                    } catch (geoError) {
-                        console.error('Geolocation Error:', geoError);
-                        statusDiv.innerText = '位置情報は取得できませんでした。時刻のみ記録します...';
-                        // 位置情報が取得できなくても処理は続行
-                    }
-                }
-
+                // ★★★ 修正点：位置情報取得ロジックを完全に削除 ★★★
                 const payload = {
                     userId: profile.userId,
                     displayName: profile.displayName,
                     action: actionType,
-                    breakTime: actionType === '終了' ? breakTime : null,
-                    location: locationData // 位置情報をペイロードに追加
+                    breakTime: actionType === '終了' ? breakTime : null
                 };
 
                 const response = await fetch('/.netlify/functions/record', {
@@ -132,9 +113,9 @@
                 const now = new Date();
                 const time = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
                 let message = `【${actionType}】${time}`;
-                if (actionType === '開始' && locationData) {
-                    message += ` (位置情報送信済)`;
-                }
+                
+                // ★★★ 修正点：「(位置情報送信済)」の文言を追加するロジックを削除 ★★★
+
                 if (actionType === '終了') {
                     message += `\n休憩: ${breakTime}分`;
                 }
