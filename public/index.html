@@ -26,7 +26,7 @@
                 <option value="60">60</option> <option value="75">75</option> <option value="90">90</option>
                 <option value="105">105</option> <option value="120">120</option>
             </select>
-            <button onclick="handleAction('終了')">休憩時間を入力して終了</button>
+            <button onclick="handleAction('終了')">休憩時間を記録して終了</button>
         </div>
         <div id="status">ステータス：準備中...</div>
     </div>
@@ -35,16 +35,17 @@
         // ===== ▼▼▼ あなたが設定する場所 START ▼▼▼ =====
 
         // 【設定1】LINE Developersコンソールで取得したLIFF ID
-        const LIFF_ID = '2007807068-1p5Q2ol8';
+        const LIFF_ID = 'YOUR_LIFF_ID_HERE';
 
         // 【設定2】あなたのLINE公式アカウントのID (@を含む)
-        const LINE_OA_ID = '@instaff';
+        const LINE_OA_ID = '@YOUR_LINE_OA_ID';
 
         // ===== ▲▲▲ あなたが設定する場所 END ▲▲▲ =====
 
         async function main() {
             const statusDiv = document.getElementById('status');
             try {
+                statusDiv.innerText = 'LIFFを初期化しています...';
                 await liff.init({ liffId: LIFF_ID });
                 if (!liff.isLoggedIn()) {
                     liff.login();
@@ -86,12 +87,32 @@
                 // --- 仕事1: Larkへの記録 ---
                 const profile = await liff.getProfile();
                 const breakTime = document.getElementById('break-time').value;
+                let locationData = null;
+
+                // ★★★ 新機能 ★★★
+                // 「開始」の場合のみ、位置情報を取得
+                if (actionType === '開始') {
+                    try {
+                        statusDiv.innerText = '位置情報の許可をお願いします...';
+                        const location = await liff.getGeolocation();
+                        locationData = {
+                            latitude: location.latitude,
+                            longitude: location.longitude
+                        };
+                        statusDiv.innerText = '位置情報を取得しました。記録中...';
+                    } catch (geoError) {
+                        console.error('Geolocation Error:', geoError);
+                        statusDiv.innerText = '位置情報は取得できませんでした。時刻のみ記録します...';
+                        // 位置情報が取得できなくても処理は続行
+                    }
+                }
 
                 const payload = {
                     userId: profile.userId,
                     displayName: profile.displayName,
                     action: actionType,
-                    breakTime: actionType === '終了' ? breakTime : null
+                    breakTime: actionType === '終了' ? breakTime : null,
+                    location: locationData // 位置情報をペイロードに追加
                 };
 
                 const response = await fetch('/.netlify/functions/record', {
@@ -111,6 +132,9 @@
                 const now = new Date();
                 const time = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
                 let message = `【${actionType}】${time}`;
+                if (actionType === '開始' && locationData) {
+                    message += ` (位置情報送信済)`;
+                }
                 if (actionType === '終了') {
                     message += `\n休憩: ${breakTime}分`;
                 }
@@ -118,7 +142,6 @@
                 const encodedMessage = encodeURIComponent(message);
                 const lineUrl = `https://line.me/R/oaMessage/${encodeURIComponent(LINE_OA_ID)}/?${encodedMessage}`;
 
-                // ユーザーをLINEのトーク画面にリダイレクト
                 window.location.href = lineUrl;
 
             } catch (error) {
